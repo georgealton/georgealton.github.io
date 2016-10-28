@@ -4,7 +4,7 @@ from __future__ import unicode_literals
 
 AUTHOR = u'George Alton'
 SITENAME = u'georgealton.com'
-SITEURL = 'http://georgealton.com/output'
+SITEURL = u'http://georgealton.com/output'
 
 PATH = 'content'
 
@@ -20,13 +20,13 @@ AUTHOR_FEED_ATOM = None
 AUTHOR_FEED_RSS = None
 
 # Blogroll
-LINKS = (
+LINKS = [
          ('about', 'about.html')
-        )
+        ]
 # Social widget
-SOCIAL = (
-          ('github', 'https://github.com/georgealton'),
-         )
+SOCIAL = [
+          ('github', 'https://github.com/georgealton')
+         ]
 
 DEFAULT_PAGINATION = False
 
