@@ -4,8 +4,11 @@ title = "George Alton"
 description = "My Blog"
 
 author = "George Alton"
-
 theme = "zola-paper"
+
+taxonomies = [
+    {name = "tags", rss = true, paginate_by = 5},
+]
 
 [markdown]
 highlight_code = true
