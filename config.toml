@@ -1,0 +1,12 @@
+base_url = "https://georgealton.com"
+
+title = "George Alton"
+description = "My Blog"
+
+author = "George Alton"
+
+theme = "zola-paper"
+
+[markdown]
+highlight_code = true
+hightlight_theme = "dracula"
