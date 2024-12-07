@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
     <head>
-        <title>George Alton - AWS Console Links</title>
+        <title>George Alton - Improve Developer Experience in CI with AWS Console Links</title>
 
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <meta http-equiv="content-type" content="text/html; charset=utf-8">
@@ -17,7 +17,7 @@
         <!-- Open Graph Tags -->
         <meta property="og:site_name" content="George Alton">
         
-        <meta property="og:title" content="AWS Console Links">
+        <meta property="og:title" content="Improve Developer Experience in CI with AWS Console Links">
         <meta property="og:url" content="https://georgealton.com/aws-console-links">
         <meta property="og:description" content="">
         
@@ -25,7 +25,7 @@
         <meta property="article:published_time" content="2024-10-15">
         
         
-        <meta property="article:tags" content="github">
+        <meta property="article:tags" content="github"><meta property="article:tags" content="aws">
         
 
         <!-- CSS -->
@@ -104,7 +104,7 @@
             
 <article class="post-single">
     <header class="post-header">
-        <h1 class="post-title">AWS Console Links</h1>
+        <h1 class="post-title">Improve Developer Experience in CI with AWS Console Links</h1>
         <div class="post-meta">
             <span class="post-author">
                 Author: George Alton
@@ -112,17 +112,79 @@
             <br/>
             <span class="post-date">Published: <time>October 15, 2024</time></span>
             <span>&middot;</span>
-            <span class="post-reading-time">1 min read</span>
+            <span class="post-reading-time">2 min read</span>
         </div>
     </header>
-    <div class="post-content"><p>When using AWS Single Sign On (Does this still need saying in 2024?) we can now
-generate links that jump straight to different parts of the AWS Console.</p>
+    <div class="post-content"><p>A few months ago AWS Identity Centre relesed a feature to generate links to AWS
+Console Pages in member Accounts.</p>
+<p>Using this feature in your CI workflow really improves the Developer
+Experience, being able to go straight from a Deployment Error in GitHub to the
+AWS Console can be a great way to streamline debugging the issue.</p>
+<p>Their isn't an API to generate these these so you'll have to start constructing
+them yourself.</p>
+<p>The format for the url</p>
+<pre style="background-color:#2b303b;color:#c0c5ce;"><code><span>/#/console?account_id=$AWS_ACCOUNT_ID&amp;role_name=$ROLE_NAME&amp;destination=$CONSOLE_URL
+</span></code></pre>
+<p>The url parameter <code>role_name</code> is optional, if you don't specify it then the
+person following the link will be asked to choose a Role when entering the
+Account.</p>
+<pre style="background-color:#2b303b;color:#c0c5ce;"><code><span>https://[your_subdomain].awsapps.com/start/#/console?account_id=[account_ID]&amp;role_name=[permission_set_name]&amp;destination=[destination_URL]
+</span></code></pre>
+<p>I've found using <code>jq</code> to be a reliable way to URL Encode the Parameters we need
+to append.</p>
+<pre data-lang="bash" style="background-color:#2b303b;color:#c0c5ce;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#8fa1b3;">urlencode </span><span>() { </span><span style="color:#bf616a;">jq -Rr</span><span> @uri &lt;&lt;&lt; $</span><span style="color:#bf616a;">1 </span><span>;}
+</span></code></pre>
+<p>A useful places to start an investigation from is CloudTrail.</p>
+<pre data-lang="bash" style="background-color:#2b303b;color:#c0c5ce;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#bf616a;">CLOUDTRAIL_CONSOLE_URL</span><span>=&quot;</span><span style="color:#a3be8c;">https://</span><span>$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">AWS_REGION</span><span style="color:#a3be8c;">}.console.aws.amazon.com/cloudtrailv2/home?region=</span><span>$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">AWS_REGION</span><span style="color:#a3be8c;">}#/events?</span><span>&quot;
+</span></code></pre>
+<p>If we just use a link to the CloudTrail Console then we've helped people get to
+the right destination but there's more we can do filter down the noise.</p>
+<p>When we're assuming Roles from CI it's a great idea to build a Role Session
+Name that identifies this CI Run, you can then correlate actions taken.</p>
+<p>In Github Actions we can take some information from the Github Context to build
+Role Session Name</p>
+<p>AWS constrains the maximum length of a <code>ROLE_SESSION_NAME</code> to 64 characters. So
+we must truncate our length here, we chop off the end of our SHA. This should
+be acceptable, and provide enough fidelity.</p>
+<p><code>github_role_session_name.sh</code></p>
+<pre data-lang="bash" style="background-color:#2b303b;color:#c0c5ce;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#bf616a;">SHA</span><span>=$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">PR_HEAD_SHA</span><span>:-$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">GITHUB_SHA</span><span style="color:#a3be8c;">}}
+</span><span style="color:#bf616a;">ROLE_SESSION_NAME</span><span>=&quot;$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">GITHUB_RUN_ID</span><span style="color:#a3be8c;">}.</span><span>$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">GITHUB_RUN_ATTEMPT</span><span style="color:#a3be8c;">}+</span><span>$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">SHA</span><span style="color:#a3be8c;">}</span><span>&quot;
+</span><span style="color:#96b5b4;">echo </span><span>&quot;</span><span style="color:#a3be8c;">value=</span><span>$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">ROLE_SESSION_NAME</span><span>:</span><span style="color:#d08770;">0</span><span>:</span><span style="color:#d08770;">64</span><span style="color:#a3be8c;">}</span><span>&quot; &gt;&gt; &quot;$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">GITHUB_OUTPUT</span><span style="color:#a3be8c;">}</span><span>&quot;
+</span></code></pre>
+<pre data-lang="yaml" style="background-color:#2b303b;color:#c0c5ce;" class="language-yaml "><code class="language-yaml" data-lang="yaml"><span>- </span><span style="color:#bf616a;">name</span><span>: </span><span style="color:#a3be8c;">Role Session Name
+</span><span>  </span><span style="color:#bf616a;">id</span><span>: </span><span style="color:#a3be8c;">role-session-name
+</span><span>  </span><span style="color:#bf616a;">env</span><span>:
+</span><span>    </span><span style="color:#bf616a;">GH_TOKEN</span><span>: </span><span style="color:#a3be8c;">${{ inputs.github-token }}
+</span><span>    </span><span style="color:#bf616a;">PR_HEAD_SHA</span><span>: </span><span style="color:#a3be8c;">${{ github.event.pull_request.head.sha }}
+</span><span>  </span><span style="color:#bf616a;">shell</span><span>: </span><span style="color:#a3be8c;">bash
+</span><span>  </span><span style="color:#bf616a;">run</span><span>: </span><span style="color:#a3be8c;">github_role_session_name.sh
+</span></code></pre>
+<p>to scope CloudTrail Events</p>
+<pre data-lang="bash" style="background-color:#2b303b;color:#c0c5ce;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#bf616a;">CLOUDTRAIL_CONSOLE_URL</span><span>=&quot;</span><span style="color:#a3be8c;">https://</span><span>$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">AWS_REGION</span><span style="color:#a3be8c;">}.console.aws.amazon.com/cloudtrailv2/home?region=</span><span>$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">AWS_REGION</span><span style="color:#a3be8c;">}#/events?Username=</span><span>$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">ROLE_SESSION_NAME</span><span style="color:#a3be8c;">}</span><span>&quot;
+</span></code></pre>
+<pre data-lang="bash" style="background-color:#2b303b;color:#c0c5ce;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#bf616a;">AWS_IDENTITY_CENTRE_SUBDOMAIN</span><span>=&quot;</span><span style="color:#a3be8c;">YOUR_SUBDOMAIN</span><span>&quot;
+</span><span style="color:#bf616a;">AWS_IDENTITY_CENTRE_BASE_URL</span><span>=&quot;</span><span style="color:#a3be8c;">https://</span><span>$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">SUBDOMAIN</span><span style="color:#a3be8c;">}.awsapps.com/start/#/console?</span><span>&quot;
+</span><span style="color:#bf616a;">CONSOLE_URL</span><span>=$</span><span style="color:#a3be8c;">(</span><span style="color:#bf616a;">urlencode </span><span>&quot;$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">CLOUDTRAIL_CONSOLE_URL</span><span style="color:#a3be8c;">}</span><span>&quot;</span><span style="color:#a3be8c;">)
+</span><span style="color:#bf616a;">LINK_URL</span><span>=&quot;$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">AWS_IDENTITY_CENTRE_BASE_URL</span><span style="color:#a3be8c;">}&amp;account_id=</span><span>$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">AWS_ACCOUNT_ID</span><span style="color:#a3be8c;">}&amp;destination=</span><span>$</span><span style="color:#a3be8c;">{</span><span style="color:#bf616a;">CONSOLE_URL</span><span style="color:#a3be8c;">}</span><span>&quot;
+</span></code></pre>
+<p>This small improvement can have a big impact on how integrated your developers
+feel about AWS and Github Actions.</p>
+<p>An of course this technique can be expanded further by generate links to other
+Resources some ideas:</p>
+<ul>
+<li>S3 Buckets</li>
+<li>CloudWatch Log Groups</li>
+<li>ECS Deployments</li>
+<li>CloudFormation Resources</li>
+</ul>
 </div>
     <footer class="post-footer">
         
         <ul class="post-tags">
         
             <li><a href="https://georgealton.com/tags/github/">github</a></li>
+        
+            <li><a href="https://georgealton.com/tags/aws/">aws</a></li>
         
         </ul>
         

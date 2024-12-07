@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>George Alton - Display CloudFormation ChangeSets in GitHub Actions</title>
+
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta http-equiv="content-type" content="text/html; charset=utf-8">
+
+        <!-- Enable responsiveness on mobile devices-->
+        <!-- viewport-fit=cover is to support iPhone X rounded corners and notch in landscape-->
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+
+        <!-- Standard meta tags -->
+        <meta name="author" content="George Alton">
+        
+
+        <!-- Open Graph Tags -->
+        <meta property="og:site_name" content="George Alton">
+        
+        <meta property="og:title" content="Display CloudFormation ChangeSets in GitHub Actions">
+        <meta property="og:url" content="https://georgealton.com/display-cloudformation-changesets-in-github-actions">
+        <meta property="og:description" content="">
+        
+        <meta property="og:type" content="article">
+        <meta property="article:published_time" content="2024-10-15">
+        
+        
+        <meta property="article:tags" content="github"><meta property="article:tags" content="aws"><meta property="article:tags" content="cloudformation">
+        
+
+        <!-- CSS -->
+        <link rel="stylesheet" href="https://georgealton.com/main.css">
+
+        <!-- Feeds -->
+        
+
+        <!-- Google Analytics -->
+        
+
+        <script>
+            function setTheme() {
+                const time = new Date();
+      
+                const prev = localStorage.getItem('date');
+                const date = String(time.getMonth() + 1) + '.' + String(time.getDate());
+      
+                const now = time.getTime();
+                let sunrise;
+                let sunset;
+      
+                function setBodyClass() {
+                    if (now > sunrise && now < sunset) return;
+                    document.body.classList.add('dark');
+                }
+      
+                if (date !== prev) {
+                    fetch('https://api.ipgeolocation.io/astronomy?apiKey=5ed37d85103e4defa5df4c5298ed5215')
+                        .then(res => res.json())
+                        .then(data => {
+                            sunrise = data.sunrise.split(':').map(Number);
+                            sunset = data.sunset.split(':').map(Number);
+                    })
+                    .catch(() => {
+                        sunrise = [7, 0];
+                        sunset = [19, 0];
+                    })
+                    .finally(() => {
+                        sunrise = time.setHours(sunrise[0], sunrise[1], 0);
+                        sunset = time.setHours(sunset[0], sunset[1], 0);
+                        setBodyClass();
+                        localStorage.setItem('sunrise', sunrise);
+                        localStorage.setItem('sunset', sunset);
+                    });
+                    localStorage.setItem('date', date);
+                } else {
+                    sunrise = Number(localStorage.getItem('sunrise'));
+                    sunset = Number(localStorage.getItem('sunset'));
+                    setBodyClass();
+                }
+            }
+        </script>
+    </head>
+    
+    <body class="single">
+    
+    <!-- Apply theme -->
+    <script>
+      setTheme();
+    </script>
+
+    
+        <header class="header">
+            <nav class="nav">
+                
+                <p class="logo"><a href="https://georgealton.com">George Alton</a></p>
+                
+                <ul class="menu">
+                    
+                </ul>
+            </nav>
+        </header>
+
+        <main class="main">
+            
+<article class="post-single">
+    <header class="post-header">
+        <h1 class="post-title">Display CloudFormation ChangeSets in GitHub Actions</h1>
+        <div class="post-meta">
+            <span class="post-author">
+                Author: George Alton
+            </span>
+            <br/>
+            <span class="post-date">Published: <time>October 15, 2024</time></span>
+            <span>&middot;</span>
+            <span class="post-reading-time">1 min read</span>
+        </div>
+    </header>
+    <div class="post-content"><p>A while ago now CloudFormation released Property Level Diffs <strong>FIND_ARTICLE</strong>
+this got me thinking about how we're able to utilise ChangeSets more in
+CI Workflows.</p>
+<p>Switching context from the Pull Request view in GitHub Actions to going to the
+AWS Console is inconvenient. We want to make our reviewers lives as easy as
+possible by providing relevant information on the Pull Request itself.</p>
+<p>It's no secret that I have a fondness for CloudFormation, but have always found
+the granularity that you get from a <code>terraform plan</code> useful when you're
+uncertain, or want to provide certainty to others about the effects of a
+infrastructure change.</p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">from </span><span>difflib </span><span style="color:#b48ead;">import </span><span>unified_diff
+</span><span style="color:#b48ead;">from </span><span>dataclasses </span><span style="color:#b48ead;">import </span><span>asdict, dataclass
+</span><span style="color:#b48ead;">from </span><span>os </span><span style="color:#b48ead;">import </span><span>environ
+</span><span>
+</span><span style="color:#b48ead;">from </span><span>boto3 </span><span style="color:#b48ead;">import </span><span>client
+</span><span style="color:#b48ead;">from </span><span>yaml </span><span style="color:#b48ead;">import </span><span>safe_load </span><span style="color:#b48ead;">as </span><span>loads, safe_dump </span><span style="color:#b48ead;">as </span><span>dumps
+</span><span style="color:#b48ead;">from </span><span>tabulate </span><span style="color:#b48ead;">import </span><span>tabulate
+</span><span>
+</span><span>
+</span><span>@</span><span style="color:#bf616a;">dataclass
+</span><span style="color:#b48ead;">class </span><span style="color:#ebcb8b;">ChangeSummary</span><span style="color:#eff1f5;">:
+</span><span>    action: str
+</span><span>    physical_resource_id: str
+</span><span>    logical_resource_id: str | </span><span style="color:#d08770;">None
+</span><span>    resource_type: str
+</span><span>    replacement: bool
+</span><span>    change: str
+</span><span>
+</span><span>    @</span><span style="color:#96b5b4;">classmethod
+</span><span>    </span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">from_change</span><span>(</span><span style="color:#bf616a;">cls</span><span>, </span><span style="color:#bf616a;">change</span><span>):
+</span><span>        resource_change = change[&quot;</span><span style="color:#a3be8c;">ResourceChange</span><span>&quot;]
+</span><span>        action = resource_change[&quot;</span><span style="color:#a3be8c;">Action</span><span>&quot;]
+</span><span>        physical_resource_id = resource_change.</span><span style="color:#bf616a;">get</span><span>(&quot;</span><span style="color:#a3be8c;">PhysicalResourceId</span><span>&quot;)
+</span><span>        logical_resource_id = resource_change[&quot;</span><span style="color:#a3be8c;">LogicalResourceId</span><span>&quot;]
+</span><span>        replacement = resource_change.</span><span style="color:#bf616a;">get</span><span>(&quot;</span><span style="color:#a3be8c;">Replacement</span><span>&quot;)
+</span><span>        resource_type = resource_change[&quot;</span><span style="color:#a3be8c;">ResourceType</span><span>&quot;]
+</span><span>        before = resource_change.</span><span style="color:#bf616a;">get</span><span>(&quot;</span><span style="color:#a3be8c;">BeforeContext</span><span>&quot;, &quot;&quot;)
+</span><span>        after = resource_change.</span><span style="color:#bf616a;">get</span><span>(&quot;</span><span style="color:#a3be8c;">AfterContext</span><span>&quot;, &quot;&quot;)
+</span><span>        change_diff = </span><span style="color:#bf616a;">diff</span><span>(</span><span style="color:#bf616a;">normalize</span><span>(before), </span><span style="color:#bf616a;">normalize</span><span>(after))
+</span><span>        diff_html = </span><span style="color:#b48ead;">f</span><span>&#39;</span><span style="color:#a3be8c;">&lt;pre lang=&quot;diff&quot;&gt;&lt;code&gt;</span><span>{change_diff}</span><span style="color:#a3be8c;">&lt;/code&gt;&lt;/pre&gt;</span><span>&#39;
+</span><span>
+</span><span>        </span><span style="color:#b48ead;">return </span><span style="color:#bf616a;">cls</span><span>(
+</span><span>            </span><span style="color:#bf616a;">action</span><span>=action,
+</span><span>            </span><span style="color:#bf616a;">physical_resource_id</span><span>=physical_resource_id,
+</span><span>            </span><span style="color:#bf616a;">logical_resource_id</span><span>=logical_resource_id,
+</span><span>            </span><span style="color:#bf616a;">resource_type</span><span>=resource_type,
+</span><span>            </span><span style="color:#bf616a;">replacement</span><span>=replacement,
+</span><span>            </span><span style="color:#bf616a;">change</span><span>=diff_html,
+</span><span>        )
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">normalize</span><span>(</span><span style="color:#bf616a;">context</span><span>):
+</span><span>    </span><span style="color:#b48ead;">return </span><span style="color:#bf616a;">dumps</span><span>(</span><span style="color:#bf616a;">loads</span><span>(context), </span><span style="color:#bf616a;">indent</span><span>=</span><span style="color:#d08770;">2</span><span>, </span><span style="color:#bf616a;">sort_keys</span><span>=</span><span style="color:#d08770;">True</span><span>)
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">summaries</span><span>(</span><span style="color:#bf616a;">changes</span><span>):
+</span><span>    </span><span style="color:#b48ead;">yield from </span><span>(</span><span style="color:#bf616a;">asdict</span><span>(ChangeSummary.</span><span style="color:#bf616a;">from_change</span><span>(change)) </span><span style="color:#b48ead;">for </span><span>change </span><span style="color:#b48ead;">in </span><span>changes)
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">get_changes</span><span>(</span><span style="color:#bf616a;">arn</span><span>):
+</span><span>    </span><span style="color:#b48ead;">return </span><span>cloudformation.</span><span style="color:#bf616a;">describe_change_set</span><span>(
+</span><span>        </span><span style="color:#bf616a;">ChangeSetName</span><span>=arn, </span><span style="color:#bf616a;">IncludePropertyValues</span><span>=</span><span style="color:#d08770;">True
+</span><span>    )
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">main</span><span>():
+</span><span>    cloudformation = </span><span style="color:#bf616a;">client</span><span>(&quot;</span><span style="color:#a3be8c;">cloudformation</span><span>&quot;)
+</span><span>    change_set_arn = environ[&quot;</span><span style="color:#a3be8c;">CHANGE_SET_ID</span><span>&quot;]
+</span><span>    changes = </span><span style="color:#bf616a;">get_changes</span><span>(change_set_arn)
+</span><span>    change_summaries = </span><span style="color:#bf616a;">summaries</span><span>(changes)
+</span><span>    table = </span><span style="color:#bf616a;">tabulate</span><span>(change_summaries, </span><span style="color:#bf616a;">headers</span><span>=&quot;</span><span style="color:#a3be8c;">keys</span><span>&quot;, </span><span style="color:#bf616a;">tablefmt</span><span>=&quot;</span><span style="color:#a3be8c;">unsafehtml</span><span>&quot;)
+</span><span>    </span><span style="color:#96b5b4;">print</span><span>(table)
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">diff</span><span>(</span><span style="color:#bf616a;">before</span><span>, </span><span style="color:#bf616a;">after</span><span>):
+</span><span>    </span><span style="color:#b48ead;">return </span><span>&quot;&quot;.</span><span style="color:#bf616a;">join</span><span>(
+</span><span>        </span><span style="color:#bf616a;">unified_diff</span><span>(
+</span><span>            before.</span><span style="color:#bf616a;">splitlines</span><span>(</span><span style="color:#bf616a;">keepends</span><span>=</span><span style="color:#d08770;">True</span><span>),
+</span><span>            after.</span><span style="color:#bf616a;">splitlines</span><span>(</span><span style="color:#bf616a;">keepends</span><span>=</span><span style="color:#d08770;">True</span><span>),
+</span><span>        )
+</span><span>    )
+</span><span>
+</span><span style="color:#b48ead;">if </span><span>__name__ == &quot;</span><span style="color:#a3be8c;">__main__</span><span>&quot;:
+</span><span>    </span><span style="color:#bf616a;">main</span><span>()
+</span></code></pre>
+</div>
+    <footer class="post-footer">
+        
+        <ul class="post-tags">
+        
+            <li><a href="https://georgealton.com/tags/github/">github</a></li>
+        
+            <li><a href="https://georgealton.com/tags/aws/">aws</a></li>
+        
+            <li><a href="https://georgealton.com/tags/cloudformation/">cloudformation</a></li>
+        
+        </ul>
+        
+    </footer>
+</article>
+
+        </main>
+
+        <footer class="footer">
+            <span>&copy; 2024 <a href="https://georgealton.com">George Alton</a></span>
+            <span>&middot;</span>
+            <span>Powered by <a href="https://www.getzola.org" rel="noopener" target="_blank">Zola</a>️</span>
+            <span>&middot;</span>
+            <span>Theme️ <a href="https://github.com/schoenenberg/zola-paper" rel="noopener" target="_blank">Zola-Paper</a></span>
+        </footer>
+    
+    </body>
+</html>

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>George Alton - CloudFormation Events Timeline view in a Gantt Chart</title>
+
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta http-equiv="content-type" content="text/html; charset=utf-8">
+
+        <!-- Enable responsiveness on mobile devices-->
+        <!-- viewport-fit=cover is to support iPhone X rounded corners and notch in landscape-->
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+
+        <!-- Standard meta tags -->
+        <meta name="author" content="George Alton">
+        
+
+        <!-- Open Graph Tags -->
+        <meta property="og:site_name" content="George Alton">
+        
+        <meta property="og:title" content="CloudFormation Events Timeline view in a Gantt Chart">
+        <meta property="og:url" content="https://georgealton.com/cloudformation-events-timeline">
+        <meta property="og:description" content="">
+        
+        <meta property="og:type" content="article">
+        <meta property="article:published_time" content="2024-10-15">
+        
+        
+        <meta property="article:tags" content="github"><meta property="article:tags" content="aws"><meta property="article:tags" content="cloudformation">
+        
+
+        <!-- CSS -->
+        <link rel="stylesheet" href="https://georgealton.com/main.css">
+
+        <!-- Feeds -->
+        
+
+        <!-- Google Analytics -->
+        
+
+        <script>
+            function setTheme() {
+                const time = new Date();
+      
+                const prev = localStorage.getItem('date');
+                const date = String(time.getMonth() + 1) + '.' + String(time.getDate());
+      
+                const now = time.getTime();
+                let sunrise;
+                let sunset;
+      
+                function setBodyClass() {
+                    if (now > sunrise && now < sunset) return;
+                    document.body.classList.add('dark');
+                }
+      
+                if (date !== prev) {
+                    fetch('https://api.ipgeolocation.io/astronomy?apiKey=5ed37d85103e4defa5df4c5298ed5215')
+                        .then(res => res.json())
+                        .then(data => {
+                            sunrise = data.sunrise.split(':').map(Number);
+                            sunset = data.sunset.split(':').map(Number);
+                    })
+                    .catch(() => {
+                        sunrise = [7, 0];
+                        sunset = [19, 0];
+                    })
+                    .finally(() => {
+                        sunrise = time.setHours(sunrise[0], sunrise[1], 0);
+                        sunset = time.setHours(sunset[0], sunset[1], 0);
+                        setBodyClass();
+                        localStorage.setItem('sunrise', sunrise);
+                        localStorage.setItem('sunset', sunset);
+                    });
+                    localStorage.setItem('date', date);
+                } else {
+                    sunrise = Number(localStorage.getItem('sunrise'));
+                    sunset = Number(localStorage.getItem('sunset'));
+                    setBodyClass();
+                }
+            }
+        </script>
+    </head>
+    
+    <body class="single">
+    
+    <!-- Apply theme -->
+    <script>
+      setTheme();
+    </script>
+
+    
+        <header class="header">
+            <nav class="nav">
+                
+                <p class="logo"><a href="https://georgealton.com">George Alton</a></p>
+                
+                <ul class="menu">
+                    
+                </ul>
+            </nav>
+        </header>
+
+        <main class="main">
+            
+<article class="post-single">
+    <header class="post-header">
+        <h1 class="post-title">CloudFormation Events Timeline view in a Gantt Chart</h1>
+        <div class="post-meta">
+            <span class="post-author">
+                Author: George Alton
+            </span>
+            <br/>
+            <span class="post-date">Published: <time>October 15, 2024</time></span>
+            <span>&middot;</span>
+            <span class="post-reading-time">1 min read</span>
+        </div>
+    </header>
+    <div class="post-content"><p>AWS released a CloudFormation Timeline to the AWS Console. Presenting the Stack
+Events like this helps us comprehend the reasons why a Stack takes time to
+update, and visualize causes of failure.</p>
+<p>GitHub Actions runs my deployments, code that gets merged into main runs in
+GitHub Actions. That's where I'm looking at when I click merge Pull Request.
+When there is an error debugging is</p>
+<p>Going from GitHub Acions to the AWS Console.</p>
+<p>Give me the Stack Name</p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">from </span><span>argparse </span><span style="color:#b48ead;">import </span><span>ArgumentParser
+</span><span>
+</span><span>parser = </span><span style="color:#bf616a;">ArgumentParser</span><span>()
+</span><span>parser.</span><span style="color:#bf616a;">add_argument</span><span>(&quot;</span><span style="color:#a3be8c;">stack</span><span>&quot;, </span><span style="color:#bf616a;">help</span><span>=&quot;</span><span style="color:#a3be8c;">Name of CloudFormation Stack</span><span>&quot;)
+</span><span>
+</span><span style="color:#65737e;"># tbh i could find this, but i already have this vslue where I use this
+</span><span>parser.</span><span style="color:#bf616a;">add_argument</span><span>(&quot;</span><span style="color:#a3be8c;">start</span><span>&quot;, </span><span style="color:#bf616a;">help</span><span>=&quot;</span><span style="color:#a3be8c;">Time of First in Event ISO Formatted Time</span><span>&quot;)
+</span><span>
+</span><span>args = parser.</span><span style="color:#bf616a;">parse_args</span><span>()
+</span><span>
+</span><span>init_time = datetime.</span><span style="color:#bf616a;">fromisoformat</span><span>(args.start)
+</span><span>stack_name = args.stack
+</span></code></pre>
+<p>Get the Stack Events</p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">from </span><span>boto3 </span><span style="color:#b48ead;">import </span><span>Session
+</span><span style="color:#b48ead;">from </span><span>datetime </span><span style="color:#b48ead;">import </span><span>datetime
+</span><span>
+</span><span>session = </span><span style="color:#bf616a;">Session</span><span>()
+</span><span>cloudformation = session.</span><span style="color:#bf616a;">client</span><span>(&quot;</span><span style="color:#a3be8c;">cloudformation</span><span>&quot;)
+</span><span>paginator = cloudformation.</span><span style="color:#bf616a;">get_paginator</span><span>(&quot;</span><span style="color:#a3be8c;">describe_stack_events</span><span>&quot;)
+</span><span>
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">get_deployment_events</span><span>(</span><span style="color:#bf616a;">stack_name</span><span>: str, </span><span style="color:#bf616a;">start_time</span><span>: datetime):
+</span><span>    </span><span style="color:#b48ead;">for </span><span>page </span><span style="color:#b48ead;">in </span><span>paginator.</span><span style="color:#bf616a;">paginate</span><span>(</span><span style="color:#bf616a;">StackName</span><span>=stack_name):
+</span><span>        </span><span style="color:#b48ead;">for </span><span>stack_event </span><span style="color:#b48ead;">in </span><span>page[&quot;</span><span style="color:#a3be8c;">StackEvents</span><span>&quot;]:
+</span><span>            </span><span style="color:#b48ead;">if </span><span>stack_event[&quot;</span><span style="color:#a3be8c;">Timestamp</span><span>&quot;] &lt; start_time:
+</span><span>                </span><span style="color:#b48ead;">return
+</span><span>            </span><span style="color:#b48ead;">yield </span><span>stack_event
+</span></code></pre>
+<p>Group Events By Resource</p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">from </span><span>collections </span><span style="color:#b48ead;">import </span><span>defaultdict
+</span><span>
+</span><span>events_by_resource = </span><span style="color:#bf616a;">defaultdict</span><span>(list)
+</span><span style="color:#b48ead;">for </span><span>event </span><span style="color:#b48ead;">in </span><span style="color:#bf616a;">get_deployment_events</span><span>(stack_name, init_time):
+</span><span>    events_by_resource[event[&quot;</span><span style="color:#a3be8c;">LogicalResourceId</span><span>&quot;]].</span><span style="color:#bf616a;">append</span><span>(event)
+</span></code></pre>
+<p>Build a Gantt Chart</p>
+<pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span>
+</span><span style="color:#bf616a;">MERMAID_GANTT </span><span>= </span><span style="color:#b48ead;">f</span><span>&quot;&quot;&quot;
+</span><span style="color:#a3be8c;">gantt
+</span><span style="color:#a3be8c;">    title Stack </span><span>{stack_name}</span><span style="color:#a3be8c;"> Deployment
+</span><span style="color:#a3be8c;">    dateFormat x
+</span><span style="color:#a3be8c;">    axisFormat %S.%L
+</span><span>&quot;&quot;&quot;
+</span><span>
+</span><span style="color:#b48ead;">for </span><span>section_name, events </span><span style="color:#b48ead;">in </span><span>events_by_resource.</span><span style="color:#bf616a;">items</span><span>():
+</span><span>    section = </span><span style="color:#b48ead;">f</span><span>&quot;</span><span style="color:#96b5b4;">\n</span><span style="color:#a3be8c;">    section </span><span>{section_name}</span><span style="color:#a3be8c;"> [</span><span>{events[</span><span style="color:#d08770;">0</span><span>][&quot;</span><span style="color:#a3be8c;">ResourceType</span><span>&quot;]}</span><span style="color:#a3be8c;">]</span><span style="color:#96b5b4;">\n</span><span>&quot;
+</span><span>    </span><span style="color:#bf616a;">MERMAID_GANTT </span><span>+= section
+</span><span>
+</span><span>    </span><span style="color:#b48ead;">for </span><span>index, event </span><span style="color:#b48ead;">in </span><span style="color:#96b5b4;">enumerate</span><span>(events):
+</span><span>        status = event[&quot;</span><span style="color:#a3be8c;">ResourceStatus</span><span>&quot;]
+</span><span>        earlier_events = events[index+</span><span style="color:#d08770;">1</span><span>:]
+</span><span>
+</span><span>        </span><span style="color:#b48ead;">if </span><span>status.</span><span style="color:#bf616a;">rpartition</span><span>(&quot;</span><span style="color:#a3be8c;">_</span><span>&quot;)[-</span><span style="color:#d08770;">1</span><span>] not in {&quot;</span><span style="color:#a3be8c;">FAILED</span><span>&quot;, &quot;</span><span style="color:#a3be8c;">COMPLETE</span><span>&quot;}:
+</span><span>            </span><span style="color:#b48ead;">continue
+</span><span>
+</span><span>        init_status = &quot;</span><span style="color:#a3be8c;">_</span><span>&quot;.</span><span style="color:#bf616a;">join</span><span>((status.</span><span style="color:#bf616a;">rpartition</span><span>(&quot;</span><span style="color:#a3be8c;">_</span><span>&quot;)[</span><span style="color:#d08770;">0</span><span>], &quot;</span><span style="color:#a3be8c;">IN_PROGRESS</span><span>&quot;))
+</span><span>        end_time = </span><span style="color:#bf616a;">int</span><span>(event[&quot;</span><span style="color:#a3be8c;">Timestamp</span><span>&quot;].</span><span style="color:#bf616a;">timestamp</span><span>() * </span><span style="color:#d08770;">1000</span><span>)
+</span><span>
+</span><span>        </span><span style="color:#65737e;"># try to find init time
+</span><span>        init_time = end_time  </span><span style="color:#65737e;"># use end_time as default if can&#39;t find start
+</span><span>        </span><span style="color:#65737e;"># there may be more than 1 event with the init_status
+</span><span>        </span><span style="color:#65737e;"># we naively at the moment select the earliest
+</span><span>        candidates = [candidate </span><span style="color:#b48ead;">for </span><span>candidate </span><span style="color:#b48ead;">in </span><span>earlier_events </span><span style="color:#b48ead;">if </span><span>candidate[&quot;</span><span style="color:#a3be8c;">ResourceStatus</span><span>&quot;] == init_status]
+</span><span>        </span><span style="color:#b48ead;">if </span><span>candidates:
+</span><span>            earliest_candidate = candidates[-</span><span style="color:#d08770;">1</span><span>]
+</span><span>            init_time = </span><span style="color:#bf616a;">int</span><span>(earlist_candidate[&quot;</span><span style="color:#a3be8c;">Timestamp</span><span>&quot;].</span><span style="color:#bf616a;">timestamp</span><span>() * </span><span style="color:#d08770;">1000</span><span>)
+</span><span>
+</span><span>        is_failure = status.</span><span style="color:#bf616a;">endswith</span><span>(&quot;</span><span style="color:#a3be8c;">FAILED</span><span>&quot;)
+</span><span>        label = &quot;</span><span style="color:#a3be8c;">crit</span><span>&quot; </span><span style="color:#b48ead;">if </span><span>is_failure </span><span style="color:#b48ead;">else </span><span>&quot;</span><span style="color:#a3be8c;">done</span><span>&quot;
+</span><span>        </span><span style="color:#bf616a;">MERMAID_GANTT </span><span>+= </span><span style="color:#b48ead;">f</span><span>&quot;    {status}</span><span style="color:#a3be8c;"> :</span><span>{label}</span><span style="color:#a3be8c;">, </span><span>{init_time}</span><span style="color:#a3be8c;">, </span><span>{end_time}</span><span style="color:#96b5b4;">\n</span><span>&quot;
+</span><span>
+</span><span>
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">format_github</span><span>(</span><span style="color:#bf616a;">mermaid_diagram_data</span><span>):
+</span><span>    </span><span style="color:#b48ead;">return f</span><span>&quot;</span><span style="color:#a3be8c;">```mermaid</span><span style="color:#96b5b4;">\n</span><span>{mermaid_diagram_data}</span><span style="color:#96b5b4;">\n</span><span style="color:#a3be8c;">```</span><span>&quot;
+</span><span>
+</span><span>
+</span><span style="color:#96b5b4;">print</span><span>(</span><span style="color:#bf616a;">format_github</span><span>(</span><span style="color:#bf616a;">MERMAID_GANTT</span><span>))
+</span></code></pre>
+<p>And the output</p>
+<pre data-lang="mermaid" style="background-color:#2b303b;color:#c0c5ce;" class="language-mermaid "><code class="language-mermaid" data-lang="mermaid"><span>gantt
+</span><span>    title Stack Example Deployment
+</span><span>    dateFormat x
+</span><span>    axisFormat %S.%L
+</span><span>
+</span><span>    section Example [AWS::CloudFormation::Stack]
+</span><span>    CREATE_COMPLETE :done, 1732724310778, 1732724331438
+</span><span>
+</span><span>    section RoleB [AWS::IAM::Role]
+</span><span>    CREATE_COMPLETE :done, 1732724312879, 1732724330031
+</span><span>
+</span><span>    section RoleA [AWS::IAM::Role]
+</span><span>    CREATE_COMPLETE :done, 1732724312847, 1732724329912
+</span><span>
+</span><span>    section PolicyA [AWS::IAM::ManagedPolicy]
+</span><span>    CREATE_COMPLETE :done, 1732724312866, 1732724329101
+</span></code></pre>
+</div>
+    <footer class="post-footer">
+        
+        <ul class="post-tags">
+        
+            <li><a href="https://georgealton.com/tags/github/">github</a></li>
+        
+            <li><a href="https://georgealton.com/tags/aws/">aws</a></li>
+        
+            <li><a href="https://georgealton.com/tags/cloudformation/">cloudformation</a></li>
+        
+        </ul>
+        
+    </footer>
+</article>
+
+        </main>
+
+        <footer class="footer">
+            <span>&copy; 2024 <a href="https://georgealton.com">George Alton</a></span>
+            <span>&middot;</span>
+            <span>Powered by <a href="https://www.getzola.org" rel="noopener" target="_blank">Zola</a>️</span>
+            <span>&middot;</span>
+            <span>Theme️ <a href="https://github.com/schoenenberg/zola-paper" rel="noopener" target="_blank">Zola-Paper</a></span>
+        </footer>
+    
+    </body>
+</html>
