@@ -127,13 +127,7 @@ When there is an error debugging is</p>
 </span><span>
 </span><span>parser = </span><span style="color:#bf616a;">ArgumentParser</span><span>()
 </span><span>parser.</span><span style="color:#bf616a;">add_argument</span><span>(&quot;</span><span style="color:#a3be8c;">stack</span><span>&quot;, </span><span style="color:#bf616a;">help</span><span>=&quot;</span><span style="color:#a3be8c;">Name of CloudFormation Stack</span><span>&quot;)
-</span><span>
-</span><span style="color:#65737e;"># tbh i could find this, but i already have this vslue where I use this
-</span><span>parser.</span><span style="color:#bf616a;">add_argument</span><span>(&quot;</span><span style="color:#a3be8c;">start</span><span>&quot;, </span><span style="color:#bf616a;">help</span><span>=&quot;</span><span style="color:#a3be8c;">Time of First in Event ISO Formatted Time</span><span>&quot;)
-</span><span>
 </span><span>args = parser.</span><span style="color:#bf616a;">parse_args</span><span>()
-</span><span>
-</span><span>init_time = datetime.</span><span style="color:#bf616a;">fromisoformat</span><span>(args.start)
 </span><span>stack_name = args.stack
 </span></code></pre>
 <p>Get the Stack Events</p>
@@ -145,10 +139,11 @@ When there is an error debugging is</p>
 </span><span>paginator = cloudformation.</span><span style="color:#bf616a;">get_paginator</span><span>(&quot;</span><span style="color:#a3be8c;">describe_stack_events</span><span>&quot;)
 </span><span>
 </span><span>
-</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">get_deployment_events</span><span>(</span><span style="color:#bf616a;">stack_name</span><span>: str, </span><span style="color:#bf616a;">start_time</span><span>: datetime):
+</span><span style="color:#b48ead;">def </span><span style="color:#8fa1b3;">get_deployment_events</span><span>(</span><span style="color:#bf616a;">stack_name</span><span>: str):
 </span><span>    </span><span style="color:#b48ead;">for </span><span>page </span><span style="color:#b48ead;">in </span><span>paginator.</span><span style="color:#bf616a;">paginate</span><span>(</span><span style="color:#bf616a;">StackName</span><span>=stack_name):
 </span><span>        </span><span style="color:#b48ead;">for </span><span>stack_event </span><span style="color:#b48ead;">in </span><span>page[&quot;</span><span style="color:#a3be8c;">StackEvents</span><span>&quot;]:
-</span><span>            </span><span style="color:#b48ead;">if </span><span>stack_event[&quot;</span><span style="color:#a3be8c;">Timestamp</span><span>&quot;] &lt; start_time:
+</span><span>            </span><span style="color:#b48ead;">if </span><span>stack_event.</span><span style="color:#bf616a;">get</span><span>(&quot;</span><span style="color:#a3be8c;">ResourceStatusReason</span><span>&quot;) == &quot;</span><span style="color:#a3be8c;">User Initiated</span><span>&quot;:
+</span><span>                </span><span style="color:#b48ead;">yield </span><span>stack_event
 </span><span>                </span><span style="color:#b48ead;">return
 </span><span>            </span><span style="color:#b48ead;">yield </span><span>stack_event
 </span></code></pre>
@@ -156,7 +151,7 @@ When there is an error debugging is</p>
 <pre data-lang="python" style="background-color:#2b303b;color:#c0c5ce;" class="language-python "><code class="language-python" data-lang="python"><span style="color:#b48ead;">from </span><span>collections </span><span style="color:#b48ead;">import </span><span>defaultdict
 </span><span>
 </span><span>events_by_resource = </span><span style="color:#bf616a;">defaultdict</span><span>(list)
-</span><span style="color:#b48ead;">for </span><span>event </span><span style="color:#b48ead;">in </span><span style="color:#bf616a;">get_deployment_events</span><span>(stack_name, init_time):
+</span><span style="color:#b48ead;">for </span><span>event </span><span style="color:#b48ead;">in </span><span style="color:#bf616a;">get_deployment_events</span><span>(stack_name):
 </span><span>    events_by_resource[event[&quot;</span><span style="color:#a3be8c;">LogicalResourceId</span><span>&quot;]].</span><span style="color:#bf616a;">append</span><span>(event)
 </span></code></pre>
 <p>Build a Gantt Chart</p>
@@ -239,7 +234,7 @@ When there is an error debugging is</p>
         </main>
 
         <footer class="footer">
-            <span>&copy; 2024 <a href="https://georgealton.com">George Alton</a></span>
+            <span>&copy; 2025 <a href="https://georgealton.com">George Alton</a></span>
             <span>&middot;</span>
             <span>Powered by <a href="https://www.getzola.org" rel="noopener" target="_blank">Zola</a>️</span>
             <span>&middot;</span>
