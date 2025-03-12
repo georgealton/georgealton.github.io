@@ -26,13 +26,7 @@ from argparse import ArgumentParser
 
 parser = ArgumentParser()
 parser.add_argument("stack", help="Name of CloudFormation Stack")
-
-# tbh i could find this, but i already have this vslue where I use this
-parser.add_argument("start", help="Time of First in Event ISO Formatted Time")
-
 args = parser.parse_args()
-
-init_time = datetime.fromisoformat(args.start)
 stack_name = args.stack
 ```
 
@@ -47,10 +41,11 @@ cloudformation = session.client("cloudformation")
 paginator = cloudformation.get_paginator("describe_stack_events")
 
 
-def get_deployment_events(stack_name: str, start_time: datetime):
+def get_deployment_events(stack_name: str):
     for page in paginator.paginate(StackName=stack_name):
         for stack_event in page["StackEvents"]:
-            if stack_event["Timestamp"] < start_time:
+            if stack_event.get("ResourceStatusReason") == "User Initiated":
+                yield stack_event
                 return
             yield stack_event
 ```
@@ -61,7 +56,7 @@ Group Events By Resource
 from collections import defaultdict
 
 events_by_resource = defaultdict(list)
-for event in get_deployment_events(stack_name, init_time):
+for event in get_deployment_events(stack_name):
     events_by_resource[event["LogicalResourceId"]].append(event)
 ```
 
